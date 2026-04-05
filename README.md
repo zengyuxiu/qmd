@@ -120,6 +120,7 @@ By default, QMD's MCP server uses stdio (launched as a subprocess by each client
 # Foreground (Ctrl-C to stop)
 qmd mcp --http                    # localhost:8181
 qmd mcp --http --port 8080        # custom port
+qmd mcp --http --host 0.0.0.0 --port 8118  # remote access
 
 # Background daemon
 qmd mcp --http --daemon           # start, writes PID to ~/.cache/qmd/mcp.pid
@@ -134,6 +135,25 @@ The HTTP server exposes two endpoints:
 LLM models stay loaded in VRAM across requests. Embedding/reranking contexts are disposed after 5 min idle and transparently recreated on the next request (~1s penalty, models remain loaded).
 
 Point any MCP client at `http://localhost:8181/mcp` to connect.
+To expose QMD to other machines on your network, bind to all interfaces with `qmd mcp --http --host 0.0.0.0 --port 8118` and connect to `http://<server-ip>:8118/mcp`.
+
+**Session Management**: The HTTP transport requires session management. When you send an `initialize` request, the server returns a session ID in the `mcp-session-id` response header. Include this session ID in the `mcp-session-id` request header for all subsequent requests in that session.
+
+```bash
+# Example: Initialize and get session ID from response header
+curl -D - http://localhost:8181/mcp -X POST \
+  -H "Content-Type: application/json" \
+  -H "Accept: application/json, text/event-stream" \
+  -d '{"jsonrpc":"2.0","method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"client","version":"1.0"}},"id":1}' \
+  | grep -i "mcp-session-id:"
+
+# Use the session ID in subsequent requests
+curl http://localhost:8181/mcp -X POST \
+  -H "Content-Type: application/json" \
+  -H "Accept: application/json, text/event-stream" \
+  -H "mcp-session-id: <session-id-from-response>" \
+  -d '{"jsonrpc":"2.0","method":"tools/list","params":{},"id":2}'
+```
 
 ### SDK / Library Usage
 

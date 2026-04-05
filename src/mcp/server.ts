@@ -537,14 +537,18 @@ export async function startMcpServer(): Promise<void> {
 export type HttpServerHandle = {
   httpServer: import("http").Server;
   port: number;
+  host: string;
   stop: () => Promise<void>;
 };
 
 /**
  * Start MCP server over Streamable HTTP (JSON responses, no SSE).
- * Binds to localhost only. Returns a handle for shutdown and port discovery.
+ * Binds to the provided host. Returns a handle for shutdown and port discovery.
  */
-export async function startMcpHttpServer(port: number, options?: { quiet?: boolean }): Promise<HttpServerHandle> {
+export async function startMcpHttpServer(
+  port: number,
+  options?: { quiet?: boolean; host?: string },
+): Promise<HttpServerHandle> {
   const store = await createStore({ dbPath: getDefaultDbPath() });
 
   // Pre-fetch default collection names for REST endpoint
@@ -577,6 +581,7 @@ export async function startMcpHttpServer(port: number, options?: { quiet?: boole
 
   const startTime = Date.now();
   const quiet = options?.quiet ?? false;
+  const host = options?.host || "localhost";
 
   /** Format timestamp for request logging */
   function ts(): string {
@@ -682,7 +687,7 @@ export async function startMcpHttpServer(port: number, options?: { quiet?: boole
         const rawBody = await collectBody(nodeReq);
         const body = JSON.parse(rawBody);
         const label = describeRequest(body);
-        const url = `http://localhost:${port}${pathname}`;
+        const url = `http://${host}:${port}${pathname}`;
         const headers: Record<string, string> = {};
         for (const [k, v] of Object.entries(nodeReq.headers)) {
           if (typeof v === "string") headers[k] = v;
@@ -753,7 +758,7 @@ export async function startMcpHttpServer(port: number, options?: { quiet?: boole
           return;
         }
 
-        const url = `http://localhost:${port}${pathname}`;
+        const url = `http://${host}:${port}${pathname}`;
         const rawBody = nodeReq.method !== "GET" && nodeReq.method !== "HEAD" ? await collectBody(nodeReq) : undefined;
         const request = new Request(url, { method: nodeReq.method || "GET", headers, ...(rawBody ? { body: rawBody } : {}) });
         const response = await transport.handleRequest(request);
@@ -773,7 +778,7 @@ export async function startMcpHttpServer(port: number, options?: { quiet?: boole
 
   await new Promise<void>((resolve, reject) => {
     httpServer.on("error", reject);
-    httpServer.listen(port, "localhost", () => resolve());
+    httpServer.listen(port, host, () => resolve());
   });
 
   const actualPort = (httpServer.address() as import("net").AddressInfo).port;
@@ -801,8 +806,8 @@ export async function startMcpHttpServer(port: number, options?: { quiet?: boole
     process.exit(0);
   });
 
-  log(`QMD MCP server listening on http://localhost:${actualPort}/mcp`);
-  return { httpServer, port: actualPort, stop };
+  log(`QMD MCP server listening on http://${host}:${actualPort}/mcp`);
+  return { httpServer, port: actualPort, host, stop };
 }
 
 // Run if this is the main module

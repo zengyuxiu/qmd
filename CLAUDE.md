@@ -23,7 +23,7 @@ qmd query <query>                 # Search with query expansion + reranking (rec
 qmd search <query>                # Full-text keyword search (BM25, no LLM)
 qmd vsearch <query>               # Vector similarity search (no reranking)
 qmd mcp                           # Start MCP server (stdio transport)
-qmd mcp --http [--port N]         # Start MCP server (HTTP, default port 8181)
+qmd mcp --http [--host HOST] [--port N]  # Start MCP server (HTTP, default localhost:8181)
 qmd mcp --http --daemon           # Start as background daemon
 qmd mcp stop                      # Stop background MCP daemon
 ```
@@ -95,6 +95,33 @@ qmd get abc123              # Leading # is optional
 # Docids also work in multi-get comma-separated lists
 qmd multi-get "#abc123, #def456"
 ```
+
+## MCP HTTP Mode
+
+When using HTTP transport (`qmd mcp --http`), session management is required:
+
+1. **Initialize**: Send an `initialize` request. The server returns a session ID in the `mcp-session-id` **response header**.
+2. **Subsequent requests**: Include the session ID in the `mcp-session-id` **request header**.
+
+```bash
+# Get session ID from response header
+SESSION_ID=$(curl -s -D - http://localhost:8181/mcp -X POST \
+  -H "Content-Type: application/json" \
+  -H "Accept: application/json, text/event-stream" \
+  -d '{"jsonrpc":"2.0","method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test","version":"1.0"}},"id":1}' \
+  | grep -i "mcp-session-id:" | cut -d' ' -f2 | tr -d '\r\n')
+
+# Use session ID in requests
+curl http://localhost:8181/mcp -X POST \
+  -H "mcp-session-id: $SESSION_ID" \
+  -H "Content-Type: application/json" \
+  -H "Accept: application/json, text/event-stream" \
+  -d '{"jsonrpc":"2.0","method":"tools/list","params":{},"id":2}'
+```
+
+**Common errors**:
+- `Missing session ID`: Forgot to include `mcp-session-id` header
+- `Session not found`: Session expired, re-initialize
 
 ## Options
 
