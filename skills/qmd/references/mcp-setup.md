@@ -43,6 +43,7 @@ qmd embed
 
 ```bash
 qmd mcp --http              # Port 8181
+qmd mcp --http --host 0.0.0.0 --port 8118
 qmd mcp --http --daemon     # Background
 qmd mcp stop                # Stop daemon
 ```

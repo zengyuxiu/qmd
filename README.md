@@ -120,6 +120,7 @@ By default, QMD's MCP server uses stdio (launched as a subprocess by each client
 # Foreground (Ctrl-C to stop)
 qmd mcp --http                    # localhost:8181
 qmd mcp --http --port 8080        # custom port
+qmd mcp --http --host 0.0.0.0 --port 8118  # remote access
 
 # Background daemon
 qmd mcp --http --daemon           # start, writes PID to ~/.cache/qmd/mcp.pid
@@ -134,6 +135,7 @@ The HTTP server exposes two endpoints:
 LLM models stay loaded in VRAM across requests. Embedding/reranking contexts are disposed after 5 min idle and transparently recreated on the next request (~1s penalty, models remain loaded).
 
 Point any MCP client at `http://localhost:8181/mcp` to connect.
+To expose QMD to other machines on your network, bind to all interfaces with `qmd mcp --http --host 0.0.0.0 --port 8118` and connect to `http://<server-ip>:8118/mcp`.
 
 ### SDK / Library Usage
 

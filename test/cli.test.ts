@@ -1337,6 +1337,20 @@ describe("mcp http daemon", () => {
     return proc;
   }
 
+  function spawnHttpServerWithHost(port: number, host: string): import("child_process").ChildProcess {
+    const proc = spawn(tsxBin, [qmdScript, "mcp", "--http", "--host", host, "--port", String(port)], {
+      cwd: fixturesDir,
+      env: {
+        ...process.env,
+        INDEX_PATH: daemonDbPath,
+        QMD_CONFIG_DIR: daemonConfigDir,
+      },
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+    if (proc.pid) spawnedPids.push(proc.pid);
+    return proc;
+  }
+
   /** Wait for HTTP server to become ready */
   async function waitForServer(port: number, timeoutMs = 5000): Promise<boolean> {
     const deadline = Date.now() + timeoutMs;
@@ -1406,6 +1420,22 @@ describe("mcp http daemon", () => {
     }
   });
 
+  test("foreground HTTP server accepts custom host binding", async () => {
+    const port = randomPort();
+    const proc = spawnHttpServerWithHost(port, "127.0.0.1");
+
+    try {
+      const ready = await waitForServer(port);
+      expect(ready).toBe(true);
+
+      const res = await fetch(`http://localhost:${port}/health`);
+      expect(res.status).toBe(200);
+    } finally {
+      proc.kill("SIGTERM");
+      await new Promise(r => proc.on("close", r));
+    }
+  });
+
   // -------------------------------------------------------------------------
   // Daemon lifecycle
   // -------------------------------------------------------------------------
@@ -1429,6 +1459,22 @@ describe("mcp http daemon", () => {
     expect(ready).toBe(true);
 
     // Clean up
+    process.kill(pid, "SIGTERM");
+    await sleep(500);
+    try { unlinkSync(pidPath()); } catch {}
+  });
+
+  test("--daemon reports custom host in startup output", async () => {
+    const port = randomPort();
+    const { stdout, exitCode } = await runDaemonQmd([
+      "mcp", "--http", "--daemon", "--host", "0.0.0.0", "--port", String(port),
+    ]);
+    expect(exitCode).toBe(0);
+    expect(stdout).toContain(`http://0.0.0.0:${port}/mcp`);
+
+    const pid = parseInt(readFileSync(pidPath(), "utf-8").trim());
+    spawnedPids.push(pid);
+
     process.kill(pid, "SIGTERM");
     await sleep(500);
     try { unlinkSync(pidPath()); } catch {}
